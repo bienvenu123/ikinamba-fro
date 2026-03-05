@@ -35,10 +35,6 @@ const Home = () => {
     users: [],
   });
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     try {
@@ -68,6 +64,10 @@ const Home = () => {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   // Memoize expensive calculations
   const processedStats = useMemo(() => {

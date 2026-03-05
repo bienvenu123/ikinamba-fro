@@ -128,7 +128,7 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeReport, filters]);
+  }, [activeReport, filters, filterDataByDate]);
 
   useEffect(() => {
     fetchReport();
