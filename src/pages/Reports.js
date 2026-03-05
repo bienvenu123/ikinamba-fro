@@ -25,114 +25,146 @@ const Reports = () => {
     { id: 'financial', name: 'Financial Report', icon: '💰' },
   ];
 
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      let data;
-      switch (activeReport) {
-        case 'summary':
-          data = await reportService.getSummaryReport();
-          // Ensure all properties are arrays
-          if (data) {
-            data.drivers = Array.isArray(data.drivers) ? data.drivers : [];
-            data.services = Array.isArray(data.services) ? data.services : [];
-            data.records = Array.isArray(data.records) ? data.records : [];
-            data.materials = Array.isArray(data.materials) ? data.materials : [];
-            data.users = Array.isArray(data.users) ? data.users : [];
-            
-            // Apply date filtering to summary data
-            if (filters.startDate || filters.endDate) {
-              if (data.records && data.records.length > 0) {
-                data.records = filterDataByDate(data.records, 'check_in_time');
+  // Filter data by date range (memoized so it can be safely used in effects)
+  const filterDataByDate = useCallback(
+    (data, dateField = 'check_in_time') => {
+      if (!filters.startDate && !filters.endDate) return data;
+      if (!data || !Array.isArray(data)) return data;
+
+      return data.filter((item) => {
+        const itemDate = item[dateField];
+        if (!itemDate) return false;
+
+        const itemDateObj = new Date(itemDate);
+        itemDateObj.setHours(0, 0, 0, 0);
+
+        if (filters.startDate) {
+          const startDateObj = new Date(filters.startDate);
+          startDateObj.setHours(0, 0, 0, 0);
+          if (itemDateObj < startDateObj) return false;
+        }
+
+        if (filters.endDate) {
+          const endDateObj = new Date(filters.endDate);
+          endDateObj.setHours(23, 59, 59, 999);
+          if (itemDateObj > endDateObj) return false;
+        }
+
+        return true;
+      });
+    },
+    [filters]
+  );
+
+  // Fetch report whenever activeReport or filters change
+  useEffect(() => {
+    const fetchReport = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        let data;
+        switch (activeReport) {
+          case 'summary':
+            data = await reportService.getSummaryReport();
+            // Ensure all properties are arrays
+            if (data) {
+              data.drivers = Array.isArray(data.drivers) ? data.drivers : [];
+              data.services = Array.isArray(data.services) ? data.services : [];
+              data.records = Array.isArray(data.records) ? data.records : [];
+              data.materials = Array.isArray(data.materials) ? data.materials : [];
+              data.users = Array.isArray(data.users) ? data.users : [];
+              
+              // Apply date filtering to summary data
+              if (filters.startDate || filters.endDate) {
+                if (data.records && data.records.length > 0) {
+                  data.records = filterDataByDate(data.records, 'check_in_time');
+                }
               }
             }
-          }
-          break;
-        case 'drivers':
-          data = await reportService.getDriversReport();
-          // Apply date filtering to drivers
-          if (data && data.data && (filters.startDate || filters.endDate)) {
-            data.data = filterDataByDate(data.data, 'created_at');
-          }
-          break;
-        case 'services':
-          data = await reportService.getServicesReport();
-          break;
-        case 'service-records':
-          data = await reportService.getServiceRecordsReport(
-            filters.status || null,
-            filters.startDate || null,
-            filters.endDate || null
-          );
-          // Apply additional client-side filtering if needed
-          if (data && data.data && (filters.startDate || filters.endDate)) {
-            data.data = filterDataByDate(data.data, 'check_in_time');
-          }
-          break;
-        case 'materials':
-          data = await reportService.getMaterialsReport();
-          // Materials are linked to service records, filter by service record check_in_time
-          if (data && data.data && (filters.startDate || filters.endDate)) {
-            // Filter materials based on their service record's check_in_time
-            data.data = data.data.filter((material) => {
-              const serviceRecord = material.service_record_id;
-              if (!serviceRecord || typeof serviceRecord !== 'object') return true;
-              
-              const checkInTime = serviceRecord.check_in_time;
-              if (!checkInTime) return true;
+            break;
+          case 'drivers':
+            data = await reportService.getDriversReport();
+            // Apply date filtering to drivers
+            if (data && data.data && (filters.startDate || filters.endDate)) {
+              data.data = filterDataByDate(data.data, 'created_at');
+            }
+            break;
+          case 'services':
+            data = await reportService.getServicesReport();
+            break;
+          case 'service-records':
+            data = await reportService.getServiceRecordsReport(
+              filters.status || null,
+              filters.startDate || null,
+              filters.endDate || null
+            );
+            // Apply additional client-side filtering if needed
+            if (data && data.data && (filters.startDate || filters.endDate)) {
+              data.data = filterDataByDate(data.data, 'check_in_time');
+            }
+            break;
+          case 'materials':
+            data = await reportService.getMaterialsReport();
+            // Materials are linked to service records, filter by service record check_in_time
+            if (data && data.data && (filters.startDate || filters.endDate)) {
+              // Filter materials based on their service record's check_in_time
+              data.data = data.data.filter((material) => {
+                const serviceRecord = material.service_record_id;
+                if (!serviceRecord || typeof serviceRecord !== 'object') return true;
+                
+                const checkInTime = serviceRecord.check_in_time;
+                if (!checkInTime) return true;
 
-              const checkInDate = new Date(checkInTime);
-              checkInDate.setHours(0, 0, 0, 0);
+                const checkInDate = new Date(checkInTime);
+                checkInDate.setHours(0, 0, 0, 0);
 
-              if (filters.startDate) {
-                const startDate = new Date(filters.startDate);
-                startDate.setHours(0, 0, 0, 0);
-                if (checkInDate < startDate) return false;
-              }
+                if (filters.startDate) {
+                  const startDate = new Date(filters.startDate);
+                  startDate.setHours(0, 0, 0, 0);
+                  if (checkInDate < startDate) return false;
+                }
 
-              if (filters.endDate) {
-                const endDate = new Date(filters.endDate);
-                endDate.setHours(23, 59, 59, 999);
-                if (checkInDate > endDate) return false;
-              }
+                if (filters.endDate) {
+                  const endDate = new Date(filters.endDate);
+                  endDate.setHours(23, 59, 59, 999);
+                  if (checkInDate > endDate) return false;
+                }
 
-              return true;
-            });
-          }
-          break;
-        case 'users':
-          data = await reportService.getUsersReport();
-          // Apply date filtering to users
-          if (data && data.data && (filters.startDate || filters.endDate)) {
-            data.data = filterDataByDate(data.data, 'createdAt');
-          }
-          break;
-        case 'financial':
-          data = await reportService.getServiceRecordsReport(
-            null,
-            filters.startDate || null,
-            filters.endDate || null
-          );
-          // Apply additional client-side filtering if needed
-          if (data && data.data && (filters.startDate || filters.endDate)) {
-            data.data = filterDataByDate(data.data, 'check_in_time');
-          }
-          break;
-        default:
-          data = await reportService.getSummaryReport();
+                return true;
+              });
+            }
+            break;
+          case 'users':
+            data = await reportService.getUsersReport();
+            // Apply date filtering to users
+            if (data && data.data && (filters.startDate || filters.endDate)) {
+              data.data = filterDataByDate(data.data, 'createdAt');
+            }
+            break;
+          case 'financial':
+            data = await reportService.getServiceRecordsReport(
+              null,
+              filters.startDate || null,
+              filters.endDate || null
+            );
+            // Apply additional client-side filtering if needed
+            if (data && data.data && (filters.startDate || filters.endDate)) {
+              data.data = filterDataByDate(data.data, 'check_in_time');
+            }
+            break;
+          default:
+            data = await reportService.getSummaryReport();
+        }
+        setReportData(data);
+      } catch (err) {
+        setError(err.message || 'Failed to load report');
+      } finally {
+        setLoading(false);
       }
-      setReportData(data);
-    } catch (err) {
-      setError(err.message || 'Failed to load report');
-    } finally {
-      setLoading(false);
-    }
-  }, [activeReport, filters, filterDataByDate]);
+    };
 
-  useEffect(() => {
     fetchReport();
-  }, [fetchReport]);
+  }, [activeReport, filters, filterDataByDate]);
 
   // Reset status filter when switching away from service-records
   useEffect(() => {
@@ -221,34 +253,6 @@ const Reports = () => {
       datePreset: 'custom',
       [name]: value,
     }));
-  };
-
-  // Filter data by date range
-  const filterDataByDate = (data, dateField = 'check_in_time') => {
-    if (!filters.startDate && !filters.endDate) return data;
-    if (!data || !Array.isArray(data)) return data;
-
-    return data.filter((item) => {
-      const itemDate = item[dateField];
-      if (!itemDate) return false;
-
-      const itemDateObj = new Date(itemDate);
-      itemDateObj.setHours(0, 0, 0, 0);
-
-      if (filters.startDate) {
-        const startDateObj = new Date(filters.startDate);
-        startDateObj.setHours(0, 0, 0, 0);
-        if (itemDateObj < startDateObj) return false;
-      }
-
-      if (filters.endDate) {
-        const endDateObj = new Date(filters.endDate);
-        endDateObj.setHours(23, 59, 59, 999);
-        if (itemDateObj > endDateObj) return false;
-      }
-
-      return true;
-    });
   };
 
   const exportToCSV = (data, filename) => {
