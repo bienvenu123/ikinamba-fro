@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import reportService from '../services/reportService';
 import './Reports.css';
 
@@ -25,21 +25,7 @@ const Reports = () => {
     { id: 'financial', name: 'Financial Report', icon: '💰' },
   ];
 
-  useEffect(() => {
-    fetchReport();
-  }, [activeReport, filters]);
-
-  // Reset status filter when switching away from service-records
-  useEffect(() => {
-    if (activeReport !== 'service-records' && filters.status) {
-      setFilters((prev) => ({
-        ...prev,
-        status: '',
-      }));
-    }
-  }, [activeReport]);
-
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -142,7 +128,21 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeReport, filters]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
+
+  // Reset status filter when switching away from service-records
+  useEffect(() => {
+    if (activeReport !== 'service-records' && filters.status) {
+      setFilters((prev) => ({
+        ...prev,
+        status: '',
+      }));
+    }
+  }, [activeReport, filters.status]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;

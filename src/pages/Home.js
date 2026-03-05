@@ -37,7 +37,7 @@ const Home = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
